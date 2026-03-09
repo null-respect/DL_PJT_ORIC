@@ -1,4 +1,8 @@
+<p align="center">
+
 # [CVPR 2026] ORIC: Benchmarking Object Recognition under Contextual Incongruity in Large Vision-Language Models
+
+</p>
 
 This repository provides the official implementation and data for  
 [**ORIC: Benchmarking Object Recognition in Incongruous Context for Large Vision-Language Models**](https://arxiv.org/abs/2509.15695)
