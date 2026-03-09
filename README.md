@@ -20,6 +20,13 @@
 
 </div>
 
+<p align="center">
+<a href="https://arxiv.org/abs/2509.15695"><img src="https://img.shields.io/badge/arXiv-2509.15695-b31b1b.svg"></a>
+<a href="https://github.com/ZhaoyangLi-1/ORIC"><img src="https://img.shields.io/badge/Code-GitHub-black"></a>
+<a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg"></a>
+</p>
+
+
 ---
 
 ![ORIC Overview](./figures/oric.png)
