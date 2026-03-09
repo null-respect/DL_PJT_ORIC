@@ -12,7 +12,7 @@
 </b>
 
 <sup>1</sup>University of California, San Diego &nbsp;&nbsp;
-<sup>2</sup>University of California, Riverside &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<sup>2</sup>University of California, Riverside <br>
 <sup>3</sup>University of Southern California &nbsp;&nbsp;
 <sup>4</sup>Hillbot Inc.
 
