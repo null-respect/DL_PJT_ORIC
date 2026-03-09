@@ -23,13 +23,8 @@
 ---
 
 ![ORIC Overview](./figures/oric.png)
-
-We introduce **ORIC**, a framework designed to systematically evaluate object recognition under incongruous contexts, where objects appear in unexpected settings or expected objects fail to appear. ORIC constructs challenging object–context pairs using two complementary strategies:
-
-(1) **LLM-guided sampling** to identify hard-to-recognize existing objects, and  
-(2) **CLIP-guided sampling** to mine plausible but absent ones.  
-
-Applied to MSCOCO, ORIC generates both the **ORIC-Bench** (evaluation) and **ORIC-style training data**. We also release code for evaluating ORIC-Bench and for fine-tuning Qwen3-VL-8B-Instruct via Visual Reinforcement Fine-Tuning (Visual-RFT). Overall, ORIC underscores contextual incongruity as a critical source of uncertainty for LVLMs and provides practical tools for building more reliable vision–language systems.
+ 
+We release ORIC-Bench, ORIC-style training data, and code for evaluation and Visual-RFT fine-tuning of Qwen3-VL-8B-Instruct.
 
 ---
 
