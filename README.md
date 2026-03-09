@@ -2,14 +2,25 @@
 
 # [CVPR 2026] ORIC: Benchmarking Object Recognition under Contextual Incongruity in Large Vision-Language Models
 
-**Zhaoyang Li<sup>1*</sup> &nbsp;&nbsp; Zhang Ling<sup>1*</sup> &nbsp;&nbsp; Yuchen Zhou<sup>1</sup> &nbsp;&nbsp; Litian Gong<sup>2</sup> &nbsp;&nbsp; Erdem Bıyık<sup>3</sup> &nbsp;&nbsp; Hao Su<sup>1,4</sup>**
+<b>
+<a href="https://zhaoyangli-1.github.io/">Zhaoyang Li</a><sup>1*</sup> &nbsp;&nbsp;
+<a href="https://lz1oceani.github.io/">Zhang Ling</a><sup>1*</sup> &nbsp;&nbsp;
+<a href="https://www.yuchenzhou.org/">Yuchen Zhou</a><sup>1</sup> &nbsp;&nbsp;
+<a href="https://gonglitian.github.io/">Litian Gong</a><sup>2</sup> &nbsp;&nbsp;
+<a href="https://ebiyik.github.io/">Erdem Bıyık</a><sup>3</sup> &nbsp;&nbsp;
+<a href="https://cseweb.ucsd.edu/~haosu">Hao Su</a><sup>1,4</sup>
+</b>
+
+<br>
 
 <sup>1</sup>University of California, San Diego &nbsp;&nbsp;
 <sup>2</sup>University of California, Riverside &nbsp;&nbsp;
 <sup>3</sup>University of Southern California &nbsp;&nbsp;
 <sup>4</sup>Hillbot Inc.
 
-\* Equal contribution
+<br>
+
+<sup>*</sup>Equal contribution
 
 </div>
 
