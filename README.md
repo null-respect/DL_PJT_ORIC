@@ -11,14 +11,10 @@
 <a href="https://cseweb.ucsd.edu/~haosu">Hao Su</a><sup>1,4</sup>
 </b>
 
-<br>
-
 <sup>1</sup>University of California, San Diego &nbsp;&nbsp;
 <sup>2</sup>University of California, Riverside &nbsp;&nbsp;
 <sup>3</sup>University of Southern California &nbsp;&nbsp;
 <sup>4</sup>Hillbot Inc.
-
-<br>
 
 <sup>*</sup>Equal contribution
 
