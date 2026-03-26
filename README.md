@@ -8,13 +8,12 @@
 <a href="https://www.yuchenzhou.org/">Yuchen Zhou</a><sup>1</sup> &nbsp;&nbsp;
 <a href="https://gonglitian.github.io/">Litian Gong</a><sup>2</sup> &nbsp;&nbsp;
 <a href="https://ebiyik.github.io/">Erdem Bıyık</a><sup>3</sup> &nbsp;&nbsp;
-<a href="https://cseweb.ucsd.edu/~haosu">Hao Su</a><sup>1,4</sup>
+<a href="https://cseweb.ucsd.edu/~haosu">Hao Su</a><sup>1</sup>
 </b>
 
 <sup>1</sup>University of California, San Diego &nbsp;&nbsp;
 <sup>2</sup>University of California, Riverside <br>
-<sup>3</sup>University of Southern California &nbsp;&nbsp;
-<sup>4</sup>Hillbot Inc.
+<sup>3</sup>University of Southern California
 
 <sup>*</sup>Equal contribution
 
