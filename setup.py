@@ -52,7 +52,7 @@ _deps = [
     "hf_transfer>=0.1.4",
     "isort>=5.12.0",
     "liger_kernel==0.5.2",
-    "lighteval @ git+https://github.com/huggingface/lighteval.git@4f381b352c0e467b5870a97d41cb66b487a2c503#egg=lighteval[math]",
+    "lighteval[math] @ git+https://github.com/huggingface/lighteval.git@4f381b352c0e467b5870a97d41cb66b487a2c503",
     "math-verify",
     "packaging>=23.0",
     "parameterized>=0.9.0",

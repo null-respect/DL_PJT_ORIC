@@ -1,199 +1,195 @@
-<div align="center">
+## 실행 가이드 (clone → inference → evaluate)
 
-# [CVPR 2026] ORIC: Benchmarking Object Recognition under Contextual Incongruity in Large Vision-Language Models
+이 문서는 이 레포에서 **ORIC-Bench에 대해 여러 VLM을 실행하고**, 모델별/전체 평가까지 수행하는 방법을 정리합니다.
 
-<b>
-<a href="https://zhaoyangli-1.github.io/">Zhaoyang Li</a><sup>1*</sup> &nbsp;&nbsp;
-<a href="https://lz1oceani.github.io/">Zhang Ling</a><sup>1*</sup> &nbsp;&nbsp;
-<a href="https://www.yuchenzhou.org/">Yuchen Zhou</a><sup>1</sup> &nbsp;&nbsp;
-<a href="https://gonglitian.github.io/">Litian Gong</a><sup>2</sup> &nbsp;&nbsp;
-<a href="https://ebiyik.github.io/">Erdem Bıyık</a><sup>3</sup> &nbsp;&nbsp;
-<a href="https://cseweb.ucsd.edu/~haosu">Hao Su</a><sup>1</sup>
-</b>
+### 원본 레포 / 라이선스
 
-<sup>1</sup>University of California, San Diego &nbsp;&nbsp;
-<sup>2</sup>University of California, Riverside <br>
-<sup>3</sup>University of Southern California
-
-<sup>*</sup>Equal contribution
-
-</div>
-
-<p align="center">
-<a href="https://arxiv.org/abs/2509.15695v5"><img src="https://img.shields.io/badge/arXiv-2509.15695-b31b1b.svg"></a>
-<a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg"></a>
-</p>
-
+- **원본 프로젝트**: `ZhaoyangLi-1/ORIC` (CVPR 2026 ORIC)
+- **라이선스**: MIT (`LICENSE` 참고)
 
 ---
 
-![ORIC Overview](./figures/oric.png)
- 
-We release ORIC-Bench, ORIC-style training data, and code for evaluation and Visual-RFT fine-tuning of Qwen3-VL-8B-Instruct.
+### 0) git clone
 
----
-
-
-## 🛠️ 1. Setup:
 ```bash
-git clone https://github.com/ZhaoyangLi-1/ORIC.git
+git clone https://github.com/null-respect/DL_PJT_ORIC.git
 cd ORIC
-conda create -n oric python=3.10
+```
+
+---
+
+### 1) 환경 세팅
+
+```bash
+conda create -n oric python=3.10 -y
 conda activate oric
 bash setup.sh
 ```
 
-## 2. Set your OpenAI API Key:
+---
+
+### 2) 데이터셋(COCO 2014) 다운로드/압축해제
+
+`infer.py`는 ORIC-Bench(`dataset/oric_bench.json`)의 `image` 필드(예: `COCO_val2014_000000420963.jpg`)를
+`--image_dir` 아래에서 찾습니다. 아래 커맨드는 레포 기본 구조(`./dataset/val2014`, `./dataset/annotations`)를 맞춥니다.
+
 ```bash
-export OPENAI_API_KEY="your_openai_api_key"
+cd dataset
+
+# COCO 2014 validation images
+wget -c http://images.cocodataset.org/zips/val2014.zip
+
+# COCO 2014 train images: 학습/Visual-RFT까지 할 경우 필요
+wget -c http://images.cocodataset.org/zips/train2014.zip
+
+# COCO 2014 train/val annotations
+wget -c http://images.cocodataset.org/annotations/annotations_trainval2014.zip
+
+# 압축 해제
+unzip val2014.zip
+unzip train2014.zip
+unzip annotations_trainval2014.zip
+
+cd ..
 ```
 
-## 3. Generate ORIC QA Samples:
-```bash
-python main.py \
-  --data_folder /path/to/coco \
-  --output_folder /path/to/output \
-  --num_objects 2 \
-  --num_images 1000 \
-  --seed 42 \
-  --llm_model gpt-5-2025-08-07 \
-  --reject_prompt ./prompts/reject_sample.txt \
-  --split val
-```
-
-Arguments:
-
---data_folder: Path to your COCO dataset folder.
+다운로드/해제 후 폴더 예시:
 
 ```text
-data_folder/
-├── train2014/                 # Training images
-│     ├── COCO_train2014_000000000009.jpg
-│     └── ...
-├── val2014/                   # Validation images
-│     ├── COCO_val2014_000000000042.jpg
-│     └── ...
-└── annotations/               # COCO annotation JSON files
-      ├── instances_train2014.json
-      └── instances_val2014.json
+dataset/
+├── val2014/                       # COCO 2014 val 이미지
+├── train2014/                     # COCO 2014 train 이미지 (선택)
+└── annotations/                   # COCO annotations
+    ├── instances_val2014.json
+    └── instances_train2014.json
 ```
-
---output_folder: Directory to save generated Q&A samples.
-
---num_objects: Number of objects to sample per image.
-
---num_images: Number of images **per label** (`yes` and `no`).
-  For example, if `num_images = 500`, the sampler uses:
-  - 500 images with label **yes**
-  - 500 images with label **no**
-  - Given `num_objects`, the total number of Q&A pairs is:
-
-    `Total Q&A = 2 * num_images * num_objects`
-
-    For instance, if `num_images = 500` and `num_objects = 2`, then:
-
-    `Total Q&A = 2 * 500 * 2 = 2000` Q&A pairs.
-
-
---llm_model: OpenAI model name (e.g., gpt-5-2025-08-07).
-
---reject_prompt: Prompt template used to formulate questions.
-
---split: Dataset split to use: `train` or `val`.  
-- `train`: Produces ORIC-style training data.
-- `val`: Produces ORIC-Bench evaluation data.
-
-
-This step produces ORIC-style Q&A pairs ready for inference. We already provide generated questions in the outputs folder for dirrectly using.
-
-
-## 4. Run Inference with Your VLM:
-
-Run your Vision-Language Model (VLM) on the generated ORIC Q&A pairs. The output should be saved in a JSON file with the following structure:
-
-```json
-[
-  {
-    "question_id": "1",
-    "predicted_answer": "yes",
-    "solution": "yes"
-  },
-  {
-    "question_id": "2",
-    "predicted_answer": "no",
-    "solution": "no"
-  }
-]
-```
-
-## 5. Evaluate Model Performance:
-```bash
-python evaluate.py \
-  --result_path /path/to/predictions.json \
-  --output_folder /path/to/eval_results
-```
-
-## 6. Visual-RFT Finetuning
-
-Visual-RFT is our reinforcement-learning finetuning pipeline built upon Group Relative Policy Optimization (GRPO), designed to reduce uncertainty-driven hallucination and improve robustness under contextual incongruity.
-
-### Requirements
-- 4 × NVIDIA H100 / A100 GPUs  
-- PyTorch ≥ 2.1  
-- Flash-Attention v2  
-- DeepSpeed ZeRO-3 (config included in repo)
 
 ---
 
-### 6.1 Training Data Preprocessing
+### 3) VLM 추론 (단일 모델)
 
-Before running Visual-RFT finetuning, ORIC-style training data must be converted into a **HuggingFace Dataset** format.   Use the following preprocessing script to convert an ORIC JSON file into a HF `DatasetDict`:
-
-```bash
-python virft/dataset/build_dataset.py \
-  --json_path /path/to/oric_train.json \
-  --image_dir /path/to/coco/images \
-  --save_path /path/to/hf_datase
-```
-
-### 6.2 Training Command
-
-Run the following command to launch GRPO fine-tuning on 4 GPUs:
+`infer.py`는 ORIC-Bench(`dataset/oric_bench.json`)를 읽어 **`predictions.json`**(README에서 요구하는 포맷)을 생성합니다.
 
 ```bash
-export DEBUG_MODE="true"
-export LOG_PATH="./debug_log_8b_GRPO_oric.txt"
-
-export DATA_PATH=./dataset  ### ORIC-style training data path which was saved in Section 6.1
-export CKPT_PATH=./share_models/Qwen3-VL-8B-Instruct ### Qwen3-VL-8B-Instruct checkpoint path
-export SAVE_PATH=./share_models/Qwen3-VL-8B-Instruct_GRPO_oric ### save path
-
-torchrun --nproc_per_node="4" \
-    --nnodes="1" \
-    --node_rank="0" \
-    --master_addr="127.0.0.1" \
-    --master_port="12345" \
-    virft/src/open_r1/grpo_classification.py \
-    --output_dir ${SAVE_PATH} \
-    --model_name_or_path ${CKPT_PATH} \
-    --dataset_name ${DATA_PATH} \
-    --deepspeed virft/zero3.json \
-    --max_prompt_length 1024 \
-    --per_device_train_batch_size 1 \
-    --gradient_accumulation_steps 4 \
-    --logging_steps 1 \
-    --bf16 true \
-    --report_to wandb \
-    --gradient_checkpointing true \
-    --attn_implementation flash_attention_2 \
-    --max_pixels 401408 \
-    --num_train_epochs 15 \
-    --run_name Qwen3-VL-8B_GRPO_oric \
-    --save_steps 100 \
-    --save_only_model true \
-    --num_generations 8 \
-    --learning_rate 2e-6 \
-    --lr_scheduler_type cosine
+python infer.py \
+  --bench_path ./dataset/oric_bench.json \
+  --image_dir ./dataset/val2014 \
+  --model_family auto \
+  --model_name_or_path "Qwen/Qwen3-VL-8B-Instruct" \
+  --output_path ./predictions.json
 ```
 
-> ✅ The trainers automatically detect whether the checkpoint corresponds to Qwen2, Qwen2.5, or Qwen3-VL (including MoE variants) and select the correct model class and image processor settings.
+#### 주요 옵션(`infer.py`, 단일)
+- **`--bench_path`**: ORIC-Bench JSON 경로
+- **`--image_dir`**: 이미지 폴더(예: `dataset/val2014`)
+- **`--model_family`**: 어댑터 선택
+  - `auto`: 모델 이름을 보고 자동 선택
+  - `qwen3_vl`: Qwen3-VL 전용 어댑터
+  - `hf_generic`: AutoModel/AutoProcessor 기반 범용 어댑터(많은 오픈 VLM에서 동작)
+- **`--model_name_or_path`**: HF 모델 ID 또는 로컬 체크포인트 경로
+- **`--output_path`**: 단일 모델 예측 저장 파일
+- **`--num_prompts`**: ORIC 한 문항의 4개 프롬프트 중 몇 개를 사용할지(기본 1)
+- **`--max_new_tokens`**: 생성 길이
+- **`--temperature`**: 샘플링 온도(기본 0.0 = 결정적)
+- **`--limit`**: 스모크 테스트용(처음 N개만 실행)
+
+---
+
+### 4) VLM 추론 (여러 모델 한 번에)
+
+`--models_file`에 **모델 목록 JSON**을 주면 순차로 돌며 모델별 `predictions_<name>.json`을 저장합니다.
+
+레포에 예시 목록이 포함되어 있습니다:
+- `models_requested.json` (요청한 12개 모델)
+- `models_paper.json` (논문 Table 12 전체: LVLM 18 + detector 2)
+
+```bash
+python infer.py \
+  --bench_path ./dataset/oric_bench.json \
+  --image_dir ./dataset/val2014 \
+  --models_file ./models_requested.json \
+  --output_dir ./preds_requested \
+  --resume
+```
+
+#### 주요 옵션(`infer.py`, 멀티)
+- **`--models_file`**: JSON 목록(예: `models_requested.json`)
+- **`--output_dir`**: 모델별 예측 파일 저장 폴더
+- **`--resume`**: `predictions_<model>.json`이 이미 있으면 그 모델은 스킵
+- **`--hf_token`**: HF gated 모델 접근이 필요할 때 토큰을 넘김  
+  - 내부적으로 `HUGGINGFACE_HUB_TOKEN`을 설정합니다.
+
+> 참고: HF에서 접근 제한(gated)인 모델(예: 일부 Llama 계열)은 403이 날 수 있습니다.  
+> 이 경우 `infer.py`는 **해당 모델만 error로 기록하고 다음 모델로 계속 진행**하며, `output_dir/run_log.json`에 상태가 저장됩니다.
+
+---
+
+### 5) (선택) “모델별로 추론 직후 바로 평가”까지 같이 수행
+
+멀티 모델 실행 시 `--evaluate_each`를 켜면, 각 모델 추론이 끝날 때마다 평가 결과를 바로 저장합니다.
+
+```bash
+python infer.py \
+  --models_file ./models_requested.json \
+  --output_dir ./preds_requested \
+  --resume \
+  --evaluate_each
+```
+
+결과:
+- 예측: `preds_requested/predictions_<model>.json`
+- 평가: `preds_requested/eval/<model>/results.json`
+
+옵션:
+- **`--eval_dir`**: 평가 저장 루트 폴더(기본은 `<output_dir>/eval`)
+
+---
+
+### 7) 평가 (단일 예측 파일)
+
+```bash
+python evaluate.py \
+  --result_path ./predictions.json \
+  --output_folder ./results_single
+```
+
+---
+
+### 8) 평가 (여러 모델 예측 파일을 한 번에)
+
+`--results_dir` 아래에서 `predictions_*.json`을 전부 찾아 모델별 폴더로 결과를 저장하고, `summary.json`도 생성합니다.
+
+```bash
+python evaluate.py \
+  --results_dir ./preds_requested \
+  --output_folder ./eval_requested
+```
+
+#### (권장) 모델 목록(`models_file`) 기준으로 “정확히 매핑”해서 평가
+
+`infer.py`가 생성한 파일명이 달라도, 모델 목록의 `name` 기준으로 `predictions_<name>.json`을 찾아서 결과를 저장합니다.
+
+```bash
+python evaluate.py \
+  --results_dir ./preds_requested \
+  --models_file ./models_requested.json \
+  --output_folder ./eval_requested
+```
+
+옵션:
+- **`--strict`**: 목록에 있는 모델의 예측 파일이 누락되면 즉시 실패(누락 감지용)
+- **`--pattern`**: glob 패턴(기본 `predictions_*.json`)
+
+---
+
+### 출력 포맷(예측 JSON)
+
+`infer.py`가 생성하는 포맷은 아래와 같습니다.
+
+```json
+[
+  {"question_id": "1", "predicted_answer": "yes", "solution": "yes"},
+  {"question_id": "2", "predicted_answer": "no",  "solution": "no"}
+]
+```
+

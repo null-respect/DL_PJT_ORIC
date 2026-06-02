@@ -1,0 +1,75 @@
+[
+  {
+    "name": "llama_3_2_11b_vision",
+    "paper_name": "Llama-3.2-11B-Vision",
+    "family": "hf_generic",
+    "model_name_or_path": "meta-llama/Llama-3.2-11B-Vision-Instruct"
+  },
+  {
+    "name": "vila1_5_13b",
+    "paper_name": "VILA1.5-13B",
+    "family": "hf_generic",
+    "model_name_or_path": "Efficient-Large-Model/VILA1.5-13b"
+  },
+  {
+    "name": "glm_4v_9b",
+    "paper_name": "GLM-4v-9B",
+    "family": "hf_generic",
+    "model_name_or_path": "THUDM/glm-4v-9b"
+  },
+  {
+    "name": "phi_3_5_vision_instruct",
+    "paper_name": "Phi-3.5-Vision-Instruct",
+    "family": "hf_generic",
+    "model_name_or_path": "microsoft/Phi-3.5-vision-instruct"
+  },
+  {
+    "name": "llava_v1_6_vicuna_13b",
+    "paper_name": "LLaVA-v1.6-Vicuna-13B",
+    "family": "hf_generic",
+    "model_name_or_path": "llava-hf/llava-v1.6-vicuna-13b-hf"
+  },
+  {
+    "name": "janus_pro_7b",
+    "paper_name": "Janus-Pro-7B",
+    "family": "hf_generic",
+    "model_name_or_path": "deepseek-ai/Janus-Pro-7B"
+  },
+  {
+    "name": "internvl3_9b",
+    "paper_name": "InternVL3-9B",
+    "family": "hf_generic",
+    "model_name_or_path": "OpenGVLab/InternVL3-9B"
+  },
+  {
+    "name": "qwen3_vl_8b_instruct",
+    "paper_name": "Qwen3-VL-8B-Instruct",
+    "family": "qwen3_vl",
+    "model_name_or_path": "Qwen/Qwen3-VL-8B-Instruct"
+  },
+  {
+    "name": "eve_7b_hd_v1_0",
+    "paper_name": "EVE-7B-HD-v1.0",
+    "family": "hf_generic",
+    "model_name_or_path": "BAAI/EVE-7B-HD-v1.0"
+  },
+  {
+    "name": "emu3_chat",
+    "paper_name": "Emu3-Chat",
+    "family": "hf_generic",
+    "model_name_or_path": "BAAI/Emu3-Chat-hf"
+  },
+  {
+    "name": "owlv2",
+    "paper_name": "OWLv2",
+    "family": "detector",
+    "model_name_or_path": "google/owlv2-large-patch14-ensemble"
+  },
+  {
+    "name": "grounding_dino_1_5_pro",
+    "paper_name": "Grounding DINO 1.5 Pro",
+    "family": "detector",
+    "model_name_or_path": "IDEA-Research/grounding-dino-1.5-pro"
+  }
+]
+
