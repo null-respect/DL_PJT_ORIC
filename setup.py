@@ -76,6 +76,10 @@ _deps = [
     "tensorboardx",
     "qwen_vl_utils",
     "psutil",
+    "timm>=0.9.0",
+    "hydra-core>=1.3.0",
+    "loguru>=0.7.0",
+    "gdown>=5.0.0",
 ]
 
 
@@ -127,6 +131,10 @@ install_requires = [
     deps["tensorboardx"],
     deps["qwen_vl_utils"],
     deps["psutil"],
+    deps["timm"],
+    deps["hydra-core"],
+    deps["loguru"],
+    deps["gdown"],
 ]
 
 

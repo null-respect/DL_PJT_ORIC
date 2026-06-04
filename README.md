@@ -39,15 +39,11 @@ cd dataset
 # COCO 2014 validation images
 wget -c http://images.cocodataset.org/zips/val2014.zip
 
-# COCO 2014 train images: 학습/Visual-RFT까지 할 경우 필요
-wget -c http://images.cocodataset.org/zips/train2014.zip
-
 # COCO 2014 train/val annotations
 wget -c http://images.cocodataset.org/annotations/annotations_trainval2014.zip
 
 # 압축 해제
 unzip val2014.zip
-unzip train2014.zip
 unzip annotations_trainval2014.zip
 
 cd ..
@@ -58,7 +54,6 @@ cd ..
 ```text
 dataset/
 ├── val2014/                       # COCO 2014 val 이미지
-├── train2014/                     # COCO 2014 train 이미지 (선택)
 └── annotations/                   # COCO annotations
     ├── instances_val2014.json
     └── instances_train2014.json
@@ -118,9 +113,14 @@ python infer.py \
 - **`--resume`**: `predictions_<model>.json`이 이미 있으면 그 모델은 스킵
 - **`--hf_token`**: HF gated 모델 접근이 필요할 때 토큰을 넘김  
   - 내부적으로 `HUGGINGFACE_HUB_TOKEN`을 설정합니다.
+- **`--load_in_4bit`**: 16GB GPU 등 VRAM이 부족할 때 4-bit 양자화로 로드 (bitsandbytes)
+- **`--dtype`**: `bfloat16` / `float16` 등 (4-bit 미사용 시)
 
-> 참고: HF에서 접근 제한(gated)인 모델(예: 일부 Llama 계열)은 403이 날 수 있습니다.  
-> 이 경우 `infer.py`는 **해당 모델만 error로 기록하고 다음 모델로 계속 진행**하며, `output_dir/run_log.json`에 상태가 저장됩니다.
+모델 JSON 항목별로 `load_in_4bit`, `dtype`, `run: false`, `note`를 줄 수 있습니다.
+
+> 참고: HF에서 접근 제한(gated)인 모델(예: 일부 Llama 계열)은 **모델 페이지에서 승인**이 필요합니다. 
+
+> 16GB GPU에서 연속 실행 시 이전 모델 VRAM이 남으면 OOM이 날 수 있습니다. `infer.py`는 모델마다 GPU 메모리를 해제합니다. 큰 모델은 `--load_in_4bit` 또는 JSON의 `"load_in_4bit": true`를 권장합니다.
 
 ---
 

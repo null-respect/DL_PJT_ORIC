@@ -8,7 +8,7 @@ import traceback
 from PIL import Image
 from tqdm import tqdm
 
-from utils.vlm_adapters import pick_adapter
+from utils.vlm_adapters import pick_adapter, release_vlm_adapter
 from evaluate import load_predictions_file, load_solutions, compute_metrics, save_results
 
 
@@ -53,6 +53,11 @@ def parse_args():
         help="If set in multi-model mode, skip models whose output file already exists.",
     )
     p.add_argument(
+        "--force",
+        action="store_true",
+        help="If set in multi-model mode, re-run models even when output files already exist.",
+    )
+    p.add_argument(
         "--hf_token",
         type=str,
         default="",
@@ -73,6 +78,24 @@ def parse_args():
     p.add_argument("--max_new_tokens", type=int, default=32)
     p.add_argument("--temperature", type=float, default=0.0)
     p.add_argument("--limit", type=int, default=0, help="If >0, only run first N questions (for smoke tests).")
+    p.add_argument(
+        "--load_in_4bit",
+        action="store_true",
+        help="Load models in 4-bit (bitsandbytes). Helps on 16GB GPUs. Per-model JSON can override.",
+    )
+    p.add_argument(
+        "--dtype",
+        type=str,
+        default="bfloat16",
+        choices=["auto", "bfloat16", "float16", "float32"],
+        help="Model weight/compute dtype when not using 4-bit.",
+    )
+    p.add_argument(
+        "--attn_implementation",
+        type=str,
+        default="",
+        help="Attention backend (e.g. sdpa, eager). Use sdpa on GPUs without FlashAttention.",
+    )
     return p.parse_args()
 
 
@@ -145,7 +168,8 @@ def main():
     args = parse_args()
 
     if args.hf_token:
-        os.environ.setdefault("HUGGINGFACE_HUB_TOKEN", args.hf_token)
+        os.environ["HUGGINGFACE_HUB_TOKEN"] = args.hf_token
+        os.environ["HF_TOKEN"] = args.hf_token
 
     with open(args.bench_path, "r", encoding="utf-8") as f:
         bench = json.load(f)
@@ -191,7 +215,7 @@ def main():
                     }
                 )
                 continue
-            if family in ("openai_api",):
+            if family == "openai_api":
                 print(f"[skip] {name}: family={family} not implemented in infer.py ({m.get('note', '')})")
                 run_log.append(
                     {
@@ -208,7 +232,7 @@ def main():
                 raise ValueError(f"Missing model_name_or_path for entry: {m}")
 
             out_path = os.path.join(args.output_dir, f"predictions_{_slug(name)}.json")
-            if args.resume and os.path.exists(out_path):
+            if args.resume and not args.force and os.path.exists(out_path):
                 print(f"[resume] Skip {name} (exists): {out_path}")
                 run_log.append(
                     {
@@ -222,9 +246,23 @@ def main():
                 )
                 continue
 
-            print(f"Running model: name={name} family={family} model={model_name_or_path}")
+            load_in_4bit = bool(m.get("load_in_4bit", args.load_in_4bit))
+            dtype = str(m.get("dtype") or args.dtype)
+            attn_impl = str(m.get("attn_implementation") or args.attn_implementation or "")
+            print(
+                f"Running model: name={name} family={family} model={model_name_or_path}"
+                + (f" load_in_4bit={load_in_4bit}" if load_in_4bit else "")
+            )
+            adapter = None
             try:
-                adapter = pick_adapter(family, model_name_or_path)
+                adapter = pick_adapter(
+                    family,
+                    model_name_or_path,
+                    load_in_4bit=load_in_4bit,
+                    dtype=dtype,
+                    attn_implementation=attn_impl or None,
+                    detector_type=str(m.get("detector_type") or "auto"),
+                )
                 preds = run_one_model(
                     bench=bench,
                     image_dir=args.image_dir,
@@ -255,6 +293,7 @@ def main():
                         "output_path": out_path,
                         "num_predictions": len(preds),
                         "eval_output_folder": eval_out_folder or None,
+                        "load_in_4bit": load_in_4bit,
                     }
                 )
             except Exception as e:
@@ -281,27 +320,40 @@ def main():
                         "error_type": type(e).__name__,
                         "error_message": msg,
                         "traceback": traceback.format_exc(limit=30),
+                        "load_in_4bit": load_in_4bit,
                     }
                 )
+            finally:
+                if adapter is not None:
+                    release_vlm_adapter(adapter)
 
             with open(run_log_path, "w", encoding="utf-8") as f:
                 json.dump(run_log, f, indent=2, ensure_ascii=False)
         return
 
     # Single-model mode
-    adapter = pick_adapter(args.model_family, args.model_name_or_path)
-    preds = run_one_model(
-        bench=bench,
-        image_dir=args.image_dir,
-        adapter=adapter,
-        num_prompts=args.num_prompts,
-        max_new_tokens=args.max_new_tokens,
-        temperature=args.temperature,
+    adapter = pick_adapter(
+        args.model_family,
+        args.model_name_or_path,
+        load_in_4bit=args.load_in_4bit,
+        dtype=args.dtype,
+        attn_implementation=args.attn_implementation or None,
     )
+    try:
+        preds = run_one_model(
+            bench=bench,
+            image_dir=args.image_dir,
+            adapter=adapter,
+            num_prompts=args.num_prompts,
+            max_new_tokens=args.max_new_tokens,
+            temperature=args.temperature,
+        )
 
-    with open(args.output_path, "w", encoding="utf-8") as f:
-        json.dump(preds, f, indent=2, ensure_ascii=False)
-    print(f"Saved {len(preds)} predictions to {args.output_path}")
+        with open(args.output_path, "w", encoding="utf-8") as f:
+            json.dump(preds, f, indent=2, ensure_ascii=False)
+        print(f"Saved {len(preds)} predictions to {args.output_path}")
+    finally:
+        release_vlm_adapter(adapter)
 
 
 if __name__ == "__main__":
