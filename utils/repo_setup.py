@@ -61,6 +61,37 @@ def _patch_eve_builder_4bit(repo_path: Path) -> None:
     old = "    elif load_4bit:\n        kwargs['load_in_4bit'] = True\n        kwargs['quantization_config']"
     new = "    elif load_4bit:\n        kwargs['quantization_config']"
     if old in text:
+        text = text.replace(old, new, 1)
+        builder_py.write_text(text, encoding="utf-8")
+
+
+def _patch_eve_builder_preprocessors(repo_path: Path) -> None:
+    """Pass local preprocessor paths via config= into EVELlamaForCausalLM.from_pretrained."""
+    builder_py = repo_path / "EVEv1" / "eve" / "model" / "builder.py"
+    if not builder_py.exists():
+        return
+    text = builder_py.read_text(encoding="utf-8")
+    if "# ORIC: eve preprocessor paths" in text:
+        return
+    old = """            tokenizer = AutoTokenizer.from_pretrained(
+                model_path, use_fast=False)
+            model = EVELlamaForCausalLM.from_pretrained(
+                model_path, low_cpu_mem_usage=True, **kwargs)"""
+    new = """            tokenizer = AutoTokenizer.from_pretrained(
+                model_path, use_fast=False)
+            # ORIC: eve preprocessor paths
+            _oric_eve_cfg = None
+            try:
+                import importlib
+                _oric_eve_cfg = importlib.import_module("utils.repo_setup").prepare_eve_config(model_path)
+            except Exception:
+                pass
+            _oric_eve_load_kw = dict(kwargs)
+            if _oric_eve_cfg is not None:
+                _oric_eve_load_kw["config"] = _oric_eve_cfg
+            model = EVELlamaForCausalLM.from_pretrained(
+                model_path, low_cpu_mem_usage=True, **_oric_eve_load_kw)"""
+    if old in text:
         builder_py.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
@@ -214,27 +245,17 @@ def prepare_eve_config(model_name_or_path: str) -> Any:
 
 
 def register_eve_builder_hooks() -> None:
-    """Inject local preprocessor paths into EVE load_pretrained_model."""
-    import eve.model.builder as builder
-
-    if getattr(builder, "_oric_eve_preprocessors_hook", False):
-        return
-
-    original = builder.load_pretrained_model
-
-    def load_pretrained_model(model_path, model_base, model_name, **kwargs):
-        if "eve" in str(model_name).lower():
-            kwargs["config"] = prepare_eve_config(model_path)
-        return original(model_path, model_base, model_name, **kwargs)
-
-    builder.load_pretrained_model = load_pretrained_model
-    builder._oric_eve_preprocessors_hook = True
+    """Ensure ORIC root is importable when patched EVE builder loads preprocessors."""
+    root = str(PROJECT_ROOT.resolve())
+    if root not in sys.path:
+        sys.path.insert(1, root)
 
 
 def add_repo_to_path(name: str, *, subdir: str = "") -> Path:
     repo_path = ensure_git_repo(name)
     if name == "EVEv1":
         _patch_eve_builder_4bit(repo_path)
+        _patch_eve_builder_preprocessors(repo_path)
     path = repo_path / subdir if subdir else repo_path
     path_str = str(path.resolve())
     if path_str not in sys.path:

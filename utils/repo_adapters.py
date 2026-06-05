@@ -20,6 +20,35 @@ def _model_device(model: Any) -> torch.device:
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+def _single_gpu_device_map(device: Optional[str] = None) -> dict[str, int | str]:
+    """Repo VLMs with vision towers break when accelerate shards across GPUs."""
+    if not torch.cuda.is_available():
+        return {"": "cpu"}
+    if device and device != "cuda":
+        if device.startswith("cuda:"):
+            return {"": int(device.split(":")[-1])}
+        if device.isdigit():
+            return {"": int(device)}
+    return {"": 0}
+
+
+def _resolve_load_device(device: Optional[str] = None) -> str:
+    if not torch.cuda.is_available():
+        return "cpu"
+    device_map = _single_gpu_device_map(device)
+    idx = device_map[""]
+    return f"cuda:{idx}" if isinstance(idx, int) else str(idx)
+
+
+def _vision_device(model: Any) -> torch.device:
+    get_vt = getattr(model, "get_vision_tower", None)
+    if callable(get_vt):
+        vision_tower = get_vt()
+        if vision_tower is not None:
+            return next(vision_tower.parameters()).device
+    return _model_device(model)
+
+
 def _model_dtype(model: Any) -> torch.dtype:
     return next(model.parameters()).dtype
 
@@ -151,14 +180,14 @@ class EveAdapter:
         self._tokenizer_image_token = tokenizer_image_token
 
         disable_torch_init()
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = _resolve_load_device(device)
         model_name = _resolve_repo_model_name(model_name_or_path, default="eve")
         self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(
             model_name_or_path,
             None,
             model_name,
             load_4bit=load_in_4bit,
-            device_map="auto" if self.device == "cuda" else {"": self.device},
+            device_map=_single_gpu_device_map(device),
             device=self.device,
         )
         self.model.eval()
@@ -184,7 +213,7 @@ class EveAdapter:
             self._IMAGE_TOKEN_INDEX,
             return_tensors="pt",
         )
-        device = _model_device(self.model)
+        device = _vision_device(self.model)
         input_ids = input_ids.unsqueeze(0).to(device)
         image_tensor = image_tensor.to(device=device, dtype=torch.float16)
 
