@@ -9,6 +9,12 @@ from PIL import Image
 from tqdm import tqdm
 
 from utils.vlm_adapters import pick_adapter, release_vlm_adapter
+from utils.prompt_strategies import (
+    PROMPT_STRATEGIES,
+    PromptStrategy,
+    default_max_new_tokens,
+    get_questions_for_example,
+)
 from evaluate import load_predictions_file, load_solutions, compute_metrics, save_results
 
 
@@ -75,6 +81,17 @@ def parse_args():
         help="If set with --evaluate_each, write per-model eval results into this directory (default: <output_dir>/eval).",
     )
     p.add_argument("--num_prompts", type=int, default=1, choices=[1, 2, 3, 4], help="How many prompt variants to use.")
+    p.add_argument(
+        "--prompt_strategy",
+        type=str,
+        default="",
+        choices=[""] + list(PROMPT_STRATEGIES),
+        help=(
+            "Optional prompt ablation strategy. When set, uses a single instruction-augmented "
+            "prompt instead of --num_prompts ensemble. Choices: "
+            + ", ".join(PROMPT_STRATEGIES)
+        ),
+    )
     p.add_argument("--max_new_tokens", type=int, default=32)
     p.add_argument("--temperature", type=float, default=0.0)
     p.add_argument("--limit", type=int, default=0, help="If >0, only run first N questions (for smoke tests).")
@@ -123,6 +140,13 @@ def _slug(s: str) -> str:
     return res.strip("_") or "model"
 
 
+def _map_answer_for_eval(answer: str, *, prompt_strategy: str) -> str:
+    """Map model output to binary yes/no for ORIC evaluation."""
+    if answer == "uncertain":
+        return "no"
+    return answer
+
+
 def run_one_model(
     *,
     bench: list[dict],
@@ -131,7 +155,13 @@ def run_one_model(
     num_prompts: int,
     max_new_tokens: int,
     temperature: float,
+    prompt_strategy: str = "",
 ) -> list[dict]:
+    strategy: PromptStrategy | None = prompt_strategy or None
+    effective_max_new_tokens = (
+        default_max_new_tokens(strategy, max_new_tokens) if strategy else max_new_tokens
+    )
+
     preds = []
     for ex in tqdm(bench, desc="Infer ORIC"):
         qid = str(ex["id"])
@@ -142,25 +172,49 @@ def run_one_model(
             predicted, _raw = adapter.predict_presence(
                 image=image, target_object=ex["target_object"]
             )
-        else:
-            problems = ex["problem"][:num_prompts]
-            answers = []
-            for q in problems:
-                gen = adapter.generate_yes_no(
-                    image=image,
-                    question=q,
-                    max_new_tokens=max_new_tokens,
-                    temperature=temperature,
-                )
-                answers.append(gen.predicted_answer)
-            predicted = majority_vote(answers)
-        preds.append(
-            {
+            pred_entry = {
                 "question_id": qid,
                 "predicted_answer": predicted,
                 "solution": ex["solution"],
             }
-        )
+        else:
+            if strategy:
+                problems = get_questions_for_example(ex, strategy)
+            else:
+                problems = ex["problem"][:num_prompts]
+
+            answers = []
+            raw_texts = []
+            for q in problems:
+                gen = adapter.generate_yes_no(
+                    image=image,
+                    question=q,
+                    max_new_tokens=effective_max_new_tokens,
+                    temperature=temperature,
+                )
+                answers.append(gen.predicted_answer)
+                raw_texts.append(gen.raw_text)
+
+            raw_answer = answers[0] if len(answers) == 1 else majority_vote(answers)
+            binary_answers = [
+                _map_answer_for_eval(a, prompt_strategy=prompt_strategy) for a in answers
+            ]
+            predicted = (
+                majority_vote(binary_answers) if len(binary_answers) > 1 else binary_answers[0]
+            )
+            pred_entry = {
+                "question_id": qid,
+                "predicted_answer": predicted,
+                "solution": ex["solution"],
+            }
+            if strategy:
+                pred_entry["prompt_strategy"] = strategy
+                pred_entry["prompt"] = problems[0]
+                pred_entry["raw_answer"] = raw_answer
+                if len(raw_texts) == 1:
+                    pred_entry["raw_text"] = raw_texts[0]
+
+        preds.append(pred_entry)
     return preds
 
 
@@ -270,6 +324,7 @@ def main():
                     num_prompts=args.num_prompts,
                     max_new_tokens=args.max_new_tokens,
                     temperature=args.temperature,
+                    prompt_strategy=args.prompt_strategy,
                 )
 
                 with open(out_path, "w", encoding="utf-8") as f:
@@ -347,6 +402,7 @@ def main():
             num_prompts=args.num_prompts,
             max_new_tokens=args.max_new_tokens,
             temperature=args.temperature,
+            prompt_strategy=args.prompt_strategy,
         )
 
         with open(args.output_path, "w", encoding="utf-8") as f:

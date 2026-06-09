@@ -20,6 +20,10 @@ from transformers import (
 
 _YES_RE = re.compile(r"\b(yes|yeah|yep|true)\b", re.IGNORECASE)
 _NO_RE = re.compile(r"\b(no|nope|false)\b", re.IGNORECASE)
+_UNCERTAIN_RE = re.compile(
+    r"\b(uncertain|not sure|cannot tell|can't tell|unknown|unsure)\b",
+    re.IGNORECASE,
+)
 _SOLUTION_RE = re.compile(r"<solution>\s*(yes|no)\s*</solution>", re.IGNORECASE)
 
 # Models whose tokenizer expects string content (image passed separately to processor).
@@ -42,14 +46,19 @@ def _extract_yes_no(text: str) -> str:
 
     yes = _YES_RE.search(t) is not None
     no = _NO_RE.search(t) is not None
-    if yes and not no:
+    uncertain = _UNCERTAIN_RE.search(t) is not None
+    if yes and not no and not uncertain:
         return "yes"
-    if no and not yes:
+    if no and not yes and not uncertain:
         return "no"
+    if uncertain and not yes and not no:
+        return "uncertain"
 
     last_yes = t.rfind("yes")
     last_no = t.rfind("no")
-    return "yes" if last_yes > last_no else "no"
+    last_uncertain = max(t.rfind(w) for w in ("uncertain", "unsure", "unknown"))
+    positions = [(last_yes, "yes"), (last_no, "no"), (last_uncertain, "uncertain")]
+    return max(positions, key=lambda x: x[0])[1]
 
 
 def _resolve_dtype(dtype: Optional[str]) -> Optional[torch.dtype]:

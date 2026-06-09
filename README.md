@@ -84,6 +84,7 @@ python infer.py \
 - **`--model_name_or_path`**: HF 모델 ID 또는 로컬 체크포인트 경로
 - **`--output_path`**: 단일 모델 예측 저장 파일
 - **`--num_prompts`**: ORIC 한 문항의 4개 프롬프트 중 몇 개를 사용할지(기본 1)
+- **`--prompt_strategy`**: 프롬프트 ablation 전략 (`basic`, `evidence_focused`, `context_warning`, `abstention_allowed`, `localization_first`). 설정 시 `--num_prompts` 대신 지시가 붙은 단일 프롬프트 사용 (자세한 내용은 **6) 프롬프트 ablation** 참고)
 - **`--max_new_tokens`**: 생성 길이
 - **`--temperature`**: 샘플링 온도(기본 0.0 = 결정적)
 - **`--limit`**: 스모크 테스트용(처음 N개만 실행)
@@ -142,6 +143,113 @@ python infer.py \
 
 옵션:
 - **`--eval_dir`**: 평가 저장 루트 폴더(기본은 `<output_dir>/eval`)
+
+---
+
+### 6) 프롬프트 ablation (맥락 함정 완화 지시 실험)
+
+ORIC는 **장면 맥락에 속아 없는 객체에 yes**를 내는 false positive가 핵심 실패 모드입니다.
+“배경/맥락에 속지 말고 실제로 보이는 것만 보라”는 지시가 도움이 되는지 실험하려면 아래 프롬프트 전략을 사용합니다.
+
+정의는 `utils/prompt_strategies.py`에 있습니다.
+
+| 전략 | 설명 | 예시 (sports ball) |
+|------|------|---------------------|
+| `basic` | 추가 지시 없음 | Is there a sports ball in the image? |
+| `evidence_focused` | 시각 증거만 사용 | ...? Answer only based on visible evidence, not scene expectations. |
+| `context_warning` | 맥락이 misleading할 수 있음을 경고 | ...? The scene context may be misleading. Carefully inspect the image. |
+| `abstention_allowed` | yes/no/uncertain 허용 | ...? Answer yes, no, or uncertain. |
+| `localization_first` | 위치 지적 후 yes/no | ...? First point out where the object is, then answer yes or no. |
+
+> **`uncertain` 처리**: `abstention_allowed`에서 모델이 `uncertain`을 출력하면 평가 시 **`no`로 매핑**합니다(보수적 정책). `summary.json`에 `uncertain_rate`도 기록됩니다.
+
+#### 6-1) 단일 모델 + 단일 전략 (`infer.py`)
+
+```bash
+python infer.py \
+  --bench_path ./dataset/oric_bench.json \
+  --image_dir ./dataset/val2014 \
+  --model_name_or_path "Qwen/Qwen3-VL-8B-Instruct" \
+  --prompt_strategy evidence_focused \
+  --output_path ./predictions_evidence_focused.json
+```
+
+- **`--prompt_strategy`**: 위 5가지 중 하나. 설정 시 `--num_prompts` 앙상블 대신 **지시가 붙은 단일 프롬프트** 1개를 사용합니다.
+- `localization_first`는 자동으로 `max_new_tokens=128`, `abstention_allowed`는 `64`로 늘어납니다.
+- 예측 JSON에 `prompt`, `raw_answer`, `raw_text` 필드가 추가로 저장됩니다.
+
+#### 6-2) 여러 모델 + 단일 전략 (`infer.py` + `--models_file`)
+
+```bash
+python infer.py \
+  --models_file ./models_requested.json \
+  --image_dir ./dataset/val2014 \
+  --prompt_strategy evidence_focused \
+  --output_dir ./preds_evidence_focused \
+  --evaluate_each \
+  --resume
+```
+
+> `family=detector`, `family=openai_api` 모델은 프롬프트를 사용하지 않으므로 ablation 대상이 아닙니다.
+
+#### 6-3) 프롬프트 ablation 일괄 실행 (`run_prompt_ablation.py`)
+
+모델 × 전략 조합을 **추론 + 평가 + summary**까지 한 번에 돌립니다.
+모델당 **1회 로드** 후 모든 전략을 순차 실행하므로, `infer.py`를 전략마다 반복 호출하는 것보다 효율적입니다.
+
+**모든 모델 × 모든 전략 (5종)**
+
+```bash
+python run_prompt_ablation.py \
+  --models_file ./models_requested.json \
+  --output_dir ./prompt_ablation_runs/all_models \
+  --resume
+```
+
+**단일 모델 × 모든 전략**
+
+```bash
+python run_prompt_ablation.py \
+  --model_name_or_path "Qwen/Qwen3-VL-8B-Instruct" \
+  --model_family qwen3_vl \
+  --output_dir ./prompt_ablation_runs/qwen_only
+```
+
+**1회만 실험할 때 (권장: `evidence_focused`)**
+
+```bash
+python run_prompt_ablation.py \
+  --models_file ./models_requested.json \
+  --strategies evidence_focused \
+  --output_dir ./prompt_ablation_runs/evidence_focused \
+  --resume
+```
+
+주요 옵션:
+- **`--models_file`**: `models_requested.json` / `models_paper.json` (미설정 시 `--model_name_or_path` 단일 모델)
+- **`--strategies`**: 비교할 전략 목록 (기본: 5종 전부)
+- **`--resume` / `--force`**: 기존 prediction 파일 스킵 / 강제 재실행
+- **`--limit`**: 스모크 테스트 (처음 N문항만)
+
+출력 구조:
+
+```text
+prompt_ablation_runs/all_models/
+├── predictions/
+│   ├── qwen3_vl_8b_instruct/
+│   │   ├── predictions_basic.json
+│   │   ├── predictions_evidence_focused.json
+│   │   └── ...
+│   └── ...
+├── eval/
+│   └── qwen3_vl_8b_instruct/
+│       ├── basic/results.json
+│       └── ...
+├── summary.json    # 모델×전략 macro F1, no/yes F1, uncertain_rate
+└── run_log.json
+```
+
+결과 해석 시 **macro F1**뿐 아니라 **`no.f1`(negative recall)** 을 함께 보세요. 맥락 함정은 주로 `solution=no` 샘플에서 드러납니다.
 
 ---
 
